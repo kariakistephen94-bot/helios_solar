@@ -9,6 +9,30 @@ A complete first-version client concept for a fictional residential solar compan
 - CSV customer export with spreadsheet formula escaping. Downloadable preliminary proposal drafts.
 - Demo qualification briefs and follow-up drafts; all demo edits persist in the current browser. Reset in Settings.
 - Production integration code: staff authentication, RLS policies, public lead-intake Edge Function, bot verification, atomic database job queue, and two importable n8n workflows.
+- **Sol**, a custom animated TypeScript/SVG companion, lives in the website and dashboard dock. Visit `/companion/` for the interactive character playground with six moods, cursor-following eyes, pause controls and a personality reel. The dock answers three curated solar questions; it does not make live AI requests.
+
+## Sol: the solar companion
+
+`components/sol/Sol.tsx` contains all original vector artwork and typed animation states. `app/sol.css` controls the motion. No raster assets or animation libraries are needed. The component is reusable:
+
+```tsx
+import Sol, {type SolMood} from '@/components/sol/Sol';
+
+// Drive this state from your app, e.g. while awaiting an AI response.
+const mood: SolMood = 'thinking';
+<Sol mood={mood} paused={false} interactive />
+```
+
+Supported states: `idle`, `wave`, `thinking`, `charging`, `celebrate`, `sleep`.
+
+- Idle: hovering, blinking, moving antenna, energy pulse and small drifting sparks.
+- Wave: raised arm, a friendly wave and happy eyes.
+- Thinking: rising thought bubbles and an orbiting energy ring.
+- Charging: rotating solar rays and a breathing core glow.
+- Celebrate: happy hops, swaying arms, dancing feet and smiling eyes.
+- Sleep: closed eyes, a slower float, dimmed core and floating Zs.
+
+All states respect `prefers-reduced-motion`. The pause controls freeze CSS animations, and paused characters stop cursor tracking. SVG gradient/filter IDs are unique per instance, so multiple characters can render on the same page. The companion uses curated demo answers and does not transmit user data or call n8n. Connect real AI in a later integration by driving the typed mood prop from request lifecycle events and retaining human review for technical recommendations.
 
 The demo brief button uses a local template, **not an AI call**. Live AI runs in n8n after configuration. No customer messages, calendar invitations, payment requests or signed contracts are sent or created. Project execution beyond the won-customer handoff is a later phase.
 
