@@ -1,0 +1,3 @@
+project_id = "helios-solar"
+[functions.lead-intake]
+verify_jwt = false

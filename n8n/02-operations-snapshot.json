@@ -1,0 +1,110 @@
+{
+  "name": "Helios | 02 Morning operations snapshot",
+  "active": false,
+  "nodes": [
+    {
+      "id": "notes",
+      "name": "Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -200,
+        -240
+      ],
+      "parameters": {
+        "width": 800,
+        "height": 180,
+        "content": "## Morning operations snapshot\nRuns at 08:00 America/Chicago. Configure Supabase URL and the same HTTP Custom Auth credential used in workflow 01. Returns counts and pipeline totals only, without customer PII. No email or Slack destination is configured or sent. If you later want delivery, add an authorized staff-only delivery node after Snapshot. Failed qualification jobs are visible in the dashboard."
+      }
+    },
+    {
+      "id": "daily",
+      "name": "Weekday mornings",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -200,
+        20
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * 1-5"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "config",
+      "name": "Configuration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        20,
+        20
+      ],
+      "parameters": {
+        "jsCode": "// Replace this URL; choose credentials on the HTTP nodes. Never paste secret keys here.\nreturn [{json:{supabase_url:'https://YOUR-PROJECT.supabase.co',model:'gpt-4.1-mini'}}];"
+      }
+    },
+    {
+      "id": "snapshot",
+      "name": "Snapshot",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        20
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Configuration').first().json.supabase_url + '/rest/v1/rpc/workspace_digest' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={}",
+        "options": {
+          "timeout": 30000
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Weekday mornings": {
+      "main": [
+        [
+          {
+            "node": "Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Configuration": {
+      "main": [
+        [
+          {
+            "node": "Snapshot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Chicago",
+    "saveDataErrorExecution": "none",
+    "saveDataSuccessExecution": "none",
+    "saveManualExecutions": false,
+    "executionTimeout": 180
+  },
+  "pinData": {},
+  "tags": []
+}
