@@ -1,13 +1,27 @@
+# Existing-system upgrade
+
+This project continues **Build a solar company system** and uses the existing Supabase `leads`, `messages`, and `appointments` tables. **Do not rerun the initial schema on that project.** Apply only `supabase/migrations/202610300002_backend_api.sql`; it adds the backend support and preserves existing lead records, conversations, appointments and follow-up state. The current backend setup instructions are in `backend/README.md`; historical fresh-install instructions below do not apply to your existing database.
+
+# Backend authentication configuration
+
+FastAPI now connects to Supabase through HTTPS using **SUPABASE_URL**, **SUPABASE_ANON_KEY**, and **SUPABASE_SECRET_KEY**. No DATABASE_URL or PostgreSQL password is required. Apply `supabase/migrations/202610300002_backend_api.sql` in Supabase after the original migration, then follow `backend/README.md`. The backend secret remains server-only; staff use their own user access tokens. The frontend also accepts NEXT_PUBLIC_SUPABASE_ANON_KEY.
+
+# Current architecture
+
+The dashboard and backend are separate services: **Next.js dashboard → FastAPI API → Supabase**. Supabase Auth handles sign-in. All lead reads/writes and public form submissions pass through FastAPI. The collector worker also persists exclusively to Supabase. SQLite, local admin-token access, browser-stored lead data and demo-data fallbacks have been removed.
+
+See [backend setup and deployment](backend/README.md) before running. Supabase project URL and API keys are required; this does not provision a Supabase account or project. Older demonstration descriptions below refer to sample assets and the fictional company, not an active local-data mode.
+
 # Helios Solar
 
-A complete first-version client concept for a fictional residential solar company in Austin, Texas. Built with **Next.js, Supabase and n8n**. All sample customers and opportunity values are fictional. The published preview is private and runs in demo mode until live services are configured.
+A complete first-version client concept for a fictional residential solar company in Austin, Texas. Built with **Next.js, Supabase and n8n**. All sample customers and opportunity values are fictional. Supabase configuration and the independently deployed FastAPI backend are required for the dashboard and enquiry form.
 
 ## What works now
 
 - Responsive public website with solution sections, interactive bill input, FAQs and a validated consultation form.
 - Staff dashboard: searchable/filterable lead list, pipeline board, editable stages, staff-entered opportunity values, Central Time survey scheduling, proposal tracking and won-customer project handoffs.
 - CSV customer export with spreadsheet formula escaping. Downloadable preliminary proposal drafts.
-- Demo qualification briefs and follow-up drafts; all demo edits persist in the current browser. Reset in Settings.
+- Supabase-backed customer records and qualification workflow results, accessed through FastAPI.
 - Production integration code: staff authentication, RLS policies, public lead-intake Edge Function, bot verification, atomic database job queue, and two importable n8n workflows.
 - **Sol**, a custom animated TypeScript/SVG companion, lives in the website and dashboard dock. Visit `/companion/` for the interactive character playground with six moods, cursor-following eyes, pause controls and a personality reel. The dock answers three curated solar questions; it does not make live AI requests.
 
@@ -34,7 +48,7 @@ Supported states: `idle`, `wave`, `thinking`, `charging`, `celebrate`, `sleep`.
 
 All states respect `prefers-reduced-motion`. The pause controls freeze CSS animations, and paused characters stop cursor tracking. SVG gradient/filter IDs are unique per instance, so multiple characters can render on the same page. The companion uses curated demo answers and does not transmit user data or call n8n. Connect real AI in a later integration by driving the typed mood prop from request lifecycle events and retaining human review for technical recommendations.
 
-The demo brief button uses a local template, **not an AI call**. Live AI runs in n8n after configuration. No customer messages, calendar invitations, payment requests or signed contracts are sent or created. Project execution beyond the won-customer handoff is a later phase.
+Qualification runs in n8n after configuration. The dashboard does not generate or store local demo briefs. No customer messages, calendar invitations, payment requests or signed contracts are sent or created. Project execution beyond the won-customer handoff is a later phase.
 
 ## Local development
 
@@ -45,7 +59,7 @@ npm ci
 npm run dev
 ```
 
-Open http://127.0.0.1:3000 and http://127.0.0.1:3000/dashboard/.
+Open http://127.0.0.1:3002 and http://127.0.0.1:3002/dashboard/.
 
 ```sh
 npm run typecheck
@@ -68,7 +82,7 @@ flowchart LR
   F --> G[Human review and customer follow-up]
 ```
 
-Demo mode stays in browser local storage. Live mode has no browser-local customer fallback: service failures are reported rather than silently saving to a local demo.
+All business data is stored in Supabase and accessed through the backend API. Service failures are reported; no browser-local customer fallback is used.
 
 ## Connect Supabase
 
@@ -92,7 +106,7 @@ supabase functions deploy lead-intake --no-verify-jwt
 
 The function deliberately accepts public requests, verifies Turnstile server-side, checks the exact origin and challenge hostname, validates a capped request body, and calls a service-only RPC. The RPC atomically inserts the lead and job. RLS denies direct public reads and writes. A per-minute hashed-IP limit allows five enquiries per minute; hashes expire after one day. IP throttling is an abuse control, not an identity check. Add provider-level rate limiting for a high-volume launch.
 
-8. Rebuild and redeploy with all public environment values set. Without both Supabase values, the application stays in demo mode. Next.js substitutes public environment variables **at build time**; changing them requires a rebuild. Turnstile is required for live submission. Staff login appears automatically in live mode.
+8. Rebuild and redeploy with all public environment values set. Without Supabase configuration, the dashboard displays a setup-required screen and submissions fail explicitly. Next.js substitutes public environment variables **at build time**; changing them requires a rebuild. Turnstile is required for live submission. Staff login appears automatically in live mode.
 
 ## Import n8n workflows
 
@@ -153,3 +167,7 @@ The monthly-bill slider is an input aid, not a savings calculator. Opportunity v
 - [n8n HTTP Request credentials](https://docs.n8n.io/integrations/builtin/credentials/httprequest/)
 - [OpenAI structured outputs](https://developers.openai.com/api/docs/guides/structured-outputs)
 - Hero solar photograph: [Unsplash image](https://unsplash.com/photos/2e959784a276); the file is supplied locally for the demo. It is illustrative and is not represented as a Helios installation.
+
+## FastAPI business prospect backend
+
+See `backend/README.md` for the Abuja discovery API, Google Places setup, PostgreSQL deployment, authentication and worker operations. The dashboard has an **Abuja prospects** tab for the persistent business prospect pipeline.

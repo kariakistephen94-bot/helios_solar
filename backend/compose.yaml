@@ -1,0 +1,20 @@
+# Apply Supabase schema SQL before starting. No local DB or connection URL.
+services:
+  api:
+    build: .
+    env_file: .env
+    ports: ['127.0.0.1:8000:8000']
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+  worker:
+    build: .
+    env_file: .env
+    command: [.venv/bin/python, -m, app.worker]
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]

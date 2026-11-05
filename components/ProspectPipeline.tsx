@@ -1,0 +1,35 @@
+'use client';
+import {useEffect,useState} from 'react';
+import {apiRequest} from '@/lib/api';
+import OutreachPreview from './OutreachPreview';
+import OutreachQueue from './OutreachQueue';
+import OutreachActivity from './OutreachActivity';
+import OutreachDispatch from './OutreachDispatch';
+import NewProspectsTracker from './NewProspectsTracker';
+const stages=['New prospect','Qualified','Survey scheduled','Proposal sent','Won','Lost'];
+type Prospect={id:string;name:string;address:string;phone:string;website:string;stage:string;notes:string;version:number;last_seen_at:number;category:string;rating:number|null;review_count:number|null;district:string|null};
+type Scan={id:string;status:string;new_count:number;updated_count:number;rejected_count:number;error:string|null;outcome?:string|null};
+type Collector={enabled:boolean;configured:boolean;requests_used:number;daily_request_limit:number;interval_hours:number;paused_until:number;new_today:number;daily_target:number;min_rating:number;min_review_count:number;active_district:string|null;target_timezone:string;searches_remaining:number;next_scan_at?:number;worker_until?:number};
+export default function ProspectPipeline(){
+ const connected=true;
+ const [queueRefresh,setQueueRefresh]=useState(0);
+ const [qualifiedOnly,setQualifiedOnly]=useState(false);
+ const [preview,setPreview]=useState<Pick<Prospect,'id'|'name'>|null>(null);
+ const [leads,setLeads]=useState<Prospect[]>([]),[total,setTotal]=useState(0),[page,setPage]=useState(0),[search,setSearch]=useState(''),[stage,setStage]=useState(''),[scans,setScans]=useState<Scan[]>([]),[collector,setCollector]=useState<Collector|null>(null),[error,setError]=useState(''),[busy,setBusy]=useState(false);
+ const request=(path:string,method='GET',body?:unknown)=>apiRequest<any>(path,method,body);
+ async function refresh(){try{const [l,c,s]=await Promise.all([request(`/v1/prospects?qualified_only=${qualifiedOnly}&limit=50&offset=${page*50}&q=${encodeURIComponent(search)}${stage?'&stage='+encodeURIComponent(stage):''}`),request('/v1/collector'),request('/v1/scans')]);setLeads(l.items);setTotal(l.total);setCollector(c);setScans(s.items);setError('')}catch(e){setError(e instanceof Error?e.message:'Unable to reach the prospect API.')}}
+ useEffect(()=>{if(!connected)return;void refresh();const timer=setInterval(()=>void refresh(),30000);return()=>clearInterval(timer)},[connected,page,search,stage,qualifiedOnly]);
+ async function action(fn:()=>Promise<unknown>){setBusy(true);try{await fn();await refresh()}catch(e){setError(e instanceof Error?e.message:'Action failed.')}finally{setBusy(false)}}
+ return <section className="panel" style={{padding:24,marginBottom:24}}><div className="panel-header" style={{padding:0,marginBottom:20}}><div><h2>Abuja business prospects</h2></div><button type="button" className="button button-outline small" onClick={()=>setPreview({id:"template-sample",name:"Example Business"})}>Preview sample template</button></div> {error&&<div className="notice error" role="alert">{error}</div>}
+ {connected&&<>{collector&&<NewProspectsTracker collector={collector} lastScan={scans[0]}/>}{collector&&<div style={{display:'flex',gap:12,alignItems:'center',flexWrap:'wrap',margin:'16px 0'}}><span>{collector.configured?(collector.enabled?'Collection on':'Collection paused'):'Google API key required'}</span><button className="button button-outline small" disabled={busy||!collector.configured} onClick={()=>void action(()=>request('/v1/collector','PATCH',{enabled:!collector.enabled}))}>{collector.enabled?'Pause collection':'Enable collection'}</button><button className="button button-dark small" disabled={busy||!collector.enabled||collector.paused_until>Date.now()/1000||collector.new_today>=collector.daily_target} onClick={()=>void action(()=>request('/v1/scans','POST'))}>Run scan</button></div>}
+ <div className="table-tools" style={{paddingLeft:0}}><select aria-label="Prospect visibility" value={qualifiedOnly?"checked":"all"} onChange={e=>{setQualifiedOnly(e.target.value==="checked");setPage(0);setPreview(null)}}><option value="checked">Meet review criteria</option><option value="all">All saved prospects</option></select><input aria-label="Search business prospects" placeholder="Search businesses" value={search} onChange={e=>{setSearch(e.target.value);setPage(0)}}/><select aria-label="Filter prospect pipeline" value={stage} onChange={e=>{setStage(e.target.value);setPage(0)}}><option value="">All stages</option>{stages.map(s=><option key={s}>{s}</option>)}</select><button className="button button-outline small" onClick={()=>void refresh()}>Refresh</button></div>
+ {preview&&<OutreachPreview key={preview.id} businessName={preview.name} prospectId={preview.id==="template-sample"?undefined:preview.id} onSaved={()=>setQueueRefresh(n=>n+1)} onClose={()=>setPreview(null)}/>}
+ <OutreachDispatch/>
+ <OutreachActivity/>
+ <OutreachQueue refreshKey={queueRefresh}/>
+ <div style={{overflowX:'auto'}}><table className="leads-table"><thead><tr><th>Business</th><th>Public contact</th><th>Pipeline</th><th>Last seen</th></tr></thead><tbody>{leads.map(l=><tr key={l.id}><td><strong>{l.name}</strong><p>{l.address}</p><small>{l.district||'District not checked'} · {l.category.replaceAll('_',' ')}<br/>{l.rating===null?'Rating not checked':l.rating+' ★'} · {l.review_count??'—'} Google ratings</small><p style={{marginTop:12}}><button type="button" className="button button-outline small" aria-label={"Preview outreach for "+l.name} aria-expanded={preview?.id===l.id} onClick={()=>setPreview(preview?.id===l.id?null:l)}>Preview outreach</button></p></td><td>{l.phone&&<a href={'tel:'+l.phone}>{l.phone}</a>}{l.website&&<p><a href={l.website} target="_blank" rel="noopener noreferrer">Business website ↗</a></p>}</td><td><select style={{minWidth:170,width:170}} aria-label={'Pipeline stage for '+l.name} disabled={busy} value={l.stage} onChange={e=>void action(()=>request('/v1/prospects/'+l.id,'PATCH',{stage:e.target.value,notes:l.notes,version:l.version}))}>{stages.map(s=><option key={s}>{s}</option>)}</select></td><td>{new Date(l.last_seen_at*1000).toLocaleString('en-NG',{timeZone:'Africa/Lagos'})}</td></tr>)}</tbody></table></div>{!leads.length&&<p style={{padding:'24px 0'}}>No prospects found.</p>}
+ <div style={{display:'flex',gap:12,alignItems:'center',margin:'20px 0'}}><span>{total} {qualifiedOnly?"meet review criteria":"saved prospects"}</span><button className="button button-outline small" disabled={!page} onClick={()=>setPage(page-1)}>Previous</button><button className="button button-outline small" disabled={(page+1)*50>=total} onClick={()=>setPage(page+1)}>Next</button></div>
+ <h3>Recent scans</h3>{scans.length?scans.slice(0,5).map(s=><p key={s.id} style={{marginTop:8}}>{s.status} · {s.new_count} new · {s.updated_count} rediscovered · {s.rejected_count} excluded{s.error?' · '+s.error.replaceAll('_',' '):s.outcome?' · '+s.outcome.replaceAll('_',' '):''}</p>):<p>No scans have run.</p>}
+ <p style={{marginTop:20,fontSize:12}}>Powered by Google Maps</p></>}
+ </section>
+}
